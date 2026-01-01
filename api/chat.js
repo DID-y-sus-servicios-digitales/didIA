@@ -5,42 +5,44 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { prompt } = req.body;
   const API_KEY = process.env.gemini_key;
+  const { prompt } = req.body || {};
+
+  if (!prompt) return res.status(400).json({ error: "No enviaste ninguna pregunta" });
 
   try {
-    // URL usando v1 y el modelo 'gemini-1.5-flash' (sin guiones extraños)
+    // USANDO VERSIÓN V1 (PRODUCCIÓN)
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: `Instrucción: Eres genDID, un asistente experto. Pregunta del usuario: ${prompt}`
-          }]
+        contents: [{ 
+          parts: [{ text: "Eres genDID, un asistente experto. Responde a esto: " + prompt }] 
         }]
       })
     });
 
     const data = await response.json();
 
-    // Si data tiene un error, lo enviamos al log para que lo veas
+    // Comprobamos si Google devolvió un error antes de intentar leer el texto
     if (data.error) {
-      console.error("Error de Google:", data.error);
-      return res.status(data.error.code || 500).json({ error: data.error.message });
+      return res.status(data.error.code || 500).json({ 
+        error: "Error de Google", 
+        mensaje: data.error.message 
+      });
     }
 
-    // Extracción segura del texto
-    if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
-      const textoIA = data.candidates[0].content.parts[0].text;
-      return res.status(200).json({ respuesta: textoIA });
+    // Extracción segura
+    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+      const texto = data.candidates[0].content.parts[0].text;
+      return res.status(200).json({ respuesta: texto });
     } else {
-      return res.status(500).json({ error: "Formato de respuesta inesperado de Google" });
+      return res.status(500).json({ error: "Formato de respuesta desconocido", raw: data });
     }
 
   } catch (error) {
-    return res.status(500).json({ error: 'Error de conexión total' });
+    return res.status(500).json({ error: "Error interno: " + error.message });
   }
 }
