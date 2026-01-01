@@ -11,15 +11,15 @@ export default async function handler(req, res) {
   if (!prompt) return res.status(400).json({ error: "No hay prompt" });
 
   try {
-    // CAMBIO 1: Usamos 'gemini-pro', que es el nombre más estable y compatible
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
+    // URL CON EL MODELO EXACTO: gemini-1.5-flash-latest
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
 
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ 
-          parts: [{ text: "Actúa como genDID, un asistente experto. Responde a: " + prompt }] 
+          parts: [{ text: "Actúa como genDID. Responde a: " + prompt }] 
         }]
       })
     });
@@ -27,21 +27,16 @@ export default async function handler(req, res) {
     const data = await response.json();
 
     if (data.error) {
-      return res.status(200).json({ 
-        error: "Google dice: " + data.error.message,
-        ayuda: "Revisa que tu API KEY sea válida en Google AI Studio" 
-      });
+      return res.status(200).json({ error: "Google dice: " + data.error.message });
     }
 
-    // CAMBIO 2: Verificación ultra-segura para evitar el crash o el object Object
     if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-      const texto = data.candidates[0].content.parts[0].text;
-      return res.status(200).json({ respuesta: texto });
+      return res.status(200).json({ respuesta: data.candidates[0].content.parts[0].text });
     } else {
-      return res.status(200).json({ error: "Respuesta vacía de la IA", debug: data });
+      return res.status(200).json({ error: "Respuesta vacía", debug: data });
     }
 
   } catch (error) {
-    return res.status(200).json({ error: "Error de servidor: " + error.message });
+    return res.status(200).json({ error: "Error: " + error.message });
   }
 }
