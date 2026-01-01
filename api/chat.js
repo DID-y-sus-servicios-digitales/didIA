@@ -9,29 +9,38 @@ export default async function handler(req, res) {
   const API_KEY = process.env.gemini_key;
 
   try {
-    // CAMBIO CLAVE: Usamos v1 en lugar de v1beta para mayor estabilidad
+    // URL usando v1 y el modelo 'gemini-1.5-flash' (sin guiones extraños)
     const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ 
-          parts: [{ text: "Eres genDID, un asistente experto. " + prompt }] 
+        contents: [{
+          parts: [{
+            text: `Instrucción: Eres genDID, un asistente experto. Pregunta del usuario: ${prompt}`
+          }]
         }]
       })
     });
 
     const data = await response.json();
 
+    // Si data tiene un error, lo enviamos al log para que lo veas
     if (data.error) {
+      console.error("Error de Google:", data.error);
       return res.status(data.error.code || 500).json({ error: data.error.message });
     }
 
-    const textoIA = data.candidates[0].content.parts[0].text;
-    return res.status(200).json({ respuesta: textoIA });
+    // Extracción segura del texto
+    if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts) {
+      const textoIA = data.candidates[0].content.parts[0].text;
+      return res.status(200).json({ respuesta: textoIA });
+    } else {
+      return res.status(500).json({ error: "Formato de respuesta inesperado de Google" });
+    }
 
   } catch (error) {
-    return res.status(500).json({ error: 'Error de conexión con la API' });
+    return res.status(500).json({ error: 'Error de conexión total' });
   }
 }
