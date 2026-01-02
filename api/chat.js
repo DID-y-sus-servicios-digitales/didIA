@@ -8,11 +8,11 @@ export default async function handler(req, res) {
   const API_KEY = process.env.gemini_key;
   const { prompt } = req.body || {};
 
-  if (!prompt) return res.status(400).json({ error: "No hay prompt" });
+  if (!prompt) return res.status(400).json({ error: "Falta el prompt" });
 
   try {
-    // Usamos gemini-pro y la versión v1, que es la combinación más estable
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${API_KEY}`;
+    // ESTA COMBINACIÓN ES LA CORRECTA: v1beta + gemini-1.5-flash
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -29,17 +29,17 @@ export default async function handler(req, res) {
     if (data.error) {
       return res.status(200).json({ 
         error: "Google dice: " + data.error.message,
-        info: "Probando con el modelo más estable (gemini-pro)"
+        debug: "Revisa si tu API KEY tiene restricciones en Google AI Studio"
       });
     }
 
     if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
       return res.status(200).json({ respuesta: data.candidates[0].content.parts[0].text });
     } else {
-      return res.status(200).json({ error: "Respuesta sin texto", debug: data });
+      return res.status(200).json({ error: "Respuesta vacía", raw: data });
     }
 
   } catch (error) {
-    return res.status(200).json({ error: "Error de servidor: " + error.message });
+    return res.status(200).json({ error: "Error interno: " + error.message });
   }
 }
