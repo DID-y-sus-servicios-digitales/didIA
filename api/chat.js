@@ -8,23 +8,27 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const API_KEY = process.env.gemini_key;
-  // Recibimos el prompt y opcionalmente la instruccion desde el body
-  const { prompt, instruccion } = req.body || {};
+  // Recibimos: prompt (pregunta), historial (el chat previo) e instruccion
+  const { prompt, historial, instruccion } = req.body || {};
 
   if (!prompt) return res.status(400).json({ error: "Falta el prompt" });
 
   try {
     const genAI = new GoogleGenerativeAI(API_KEY);
-
-    // Si el cliente envía 'instruccion', la usamos. Si no, usamos la de genDID.
-    const systemText = instruccion || "Eres genDID, un asistente experto y conciso.";
+    const systemText = instruccion || "Eres genDID, un asistente experto en conversación.";
 
     const model = genAI.getGenerativeModel({ 
       model: "gemini-1.5-flash",
       systemInstruction: systemText,
     });
 
-    const result = await model.generateContent(prompt);
+    // Iniciamos el chat con el historial que viene del navegador
+    // El historial debe ser un array de objetos: { role: "user" o "model", parts: [{ text: "..." }] }
+    const chat = model.startChat({
+      history: historial || [], 
+    });
+
+    const result = await chat.sendMessage(prompt);
     const response = await result.response;
     const text = response.text();
 
@@ -32,7 +36,7 @@ export default async function handler(req, res) {
 
   } catch (error) {
     return res.status(200).json({ 
-      error: "Error del SDK", 
+      error: "Error en la conversación", 
       mensaje: error.message 
     });
   }
