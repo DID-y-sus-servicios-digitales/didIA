@@ -1,50 +1,53 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// Importación directa desde CDN (sin necesidad de package.json)
+import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    // Cabeceras CORS para permitir peticiones desde cualquier origen
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
+    // Responder rápido a la petición de control (OPTIONS)
+    if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const API_KEY = process.env.gemini_key;
-  // Recibimos la variable 'esConversacion'
-  const { prompt, historial, instruccion, esConversacion } = req.body || {};
+    const { prompt, historial, instruccion, esConversacion } = req.body || {};
+    const API_KEY = process.env.gemini_key;
 
-  if (!prompt) return res.status(400).json({ error: "Falta el prompt" });
+    if (!API_KEY) return res.status(500).json({ error: "Falta la variable gemini_key en Vercel" });
 
-  try {
-    const genAI = new GoogleGenerativeAI(API_KEY);
-    const systemText = instruccion || "Eres genDID, un asistente experto.";
+    try {
+        const genAI = new GoogleGenerativeAI(API_KEY);
+        
+        // Configuramos el modelo con la identidad original de genDID
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-flash",
+            // Si el cliente no envía una instrucción específica, usamos la estándar
+            systemInstruction: instruccion || "Eres genDID, un asistente experto, atento y resolutivo."
+        });
 
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-      systemInstruction: systemText,
-    });
+        let respuestaTexto = "";
 
-    let textoFinal = "";
+        if (esConversacion === true) {
+            // MODO CONVERSACIÓN: Usa el historial enviado por el cliente
+            const chat = model.startChat({ 
+                history: historial || [] 
+            });
+            const result = await chat.sendMessage(prompt);
+            respuestaTexto = result.response.text();
+        } else {
+            // MODO RESPUESTA ÚNICA: Solo responde al prompt actual
+            const result = await model.generateContent(prompt);
+            respuestaTexto = result.response.text();
+        }
 
-    if (esConversacion === true) {
-      // --- MODO CONVERSACIÓN ---
-      const chat = model.startChat({
-        history: historial || [],
-      });
-      const result = await chat.sendMessage(prompt);
-      const response = await result.response;
-      textoFinal = response.text();
-    } else {
-      // --- MODO RESPUESTA ÚNICA ---
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      textoFinal = response.text();
+        // Devolvemos la respuesta limpia
+        return res.status(200).json({ respuesta: respuestaTexto });
+
+    } catch (error) {
+        console.error("Error en la función:", error);
+        return res.status(500).json({ 
+            error: "Error en el servidor de genDID", 
+            mensaje: error.message 
+        });
     }
-
-    return res.status(200).json({ respuesta: textoFinal });
-
-  } catch (error) {
-    return res.status(200).json({ 
-      error: "Error en la ejecución", 
-      mensaje: error.message 
-    });
-  }
 }
