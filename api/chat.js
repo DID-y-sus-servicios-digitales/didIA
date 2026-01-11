@@ -1,3 +1,5 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -8,38 +10,30 @@ export default async function handler(req, res) {
   const API_KEY = process.env.gemini_key;
   const { prompt } = req.body || {};
 
-  if (!prompt) return res.status(400).json({ error: "Falta el prompt" });
+  if (!prompt) return res.status(400).json({ error: "Falta el mensaje" });
 
   try {
-    // ESTA COMBINACIÓN ES LA CORRECTA: v1beta + gemini-1.5-flash
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ 
-          parts: [{ text: "Eres genDID, un asistente experto. Responde a: " + prompt }] 
-        }]
-      })
+    // Inicializar el SDK
+    const genAI = new GoogleGenerativeAI(API_KEY);
+    
+    // Configurar el modelo (aquí es donde definimos la identidad)
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      systemInstruction: "Eres genDID, un asistente experto en tecnología y búsqueda de información. Responde de forma clara y directa.",
     });
 
-    const data = await response.json();
+    // Generar contenido
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
 
-    if (data.error) {
-      return res.status(200).json({ 
-        error: "Google dice: " + data.error.message,
-        debug: "Revisa si tu API KEY tiene restricciones en Google AI Studio"
-      });
-    }
-
-    if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
-      return res.status(200).json({ respuesta: data.candidates[0].content.parts[0].text });
-    } else {
-      return res.status(200).json({ error: "Respuesta vacía", raw: data });
-    }
+    return res.status(200).json({ respuesta: text });
 
   } catch (error) {
-    return res.status(200).json({ error: "Error interno: " + error.message });
+    // Si el modelo falla, el SDK nos dará un mensaje claro
+    return res.status(200).json({ 
+      error: "Error del SDK de Gemini", 
+      mensaje: error.message 
+    });
   }
 }
